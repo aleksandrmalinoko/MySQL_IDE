@@ -6,6 +6,7 @@ from PyQt5.uic.properties import QtCore
 
 from ui import Ui_MainWindow
 import mysql.connector
+from errno import errorcode
 
 
 class CurrencyConv(QtWidgets.QMainWindow):
@@ -15,14 +16,55 @@ class CurrencyConv(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.ui.loadTableButton.clicked.connect(self.converter)
         self.ui.editTableButton.clicked.connect(self.enable_edit)
+        self.ui.addRowButton.clicked.connect(self.add_row)
+        self.ui.deleteRowButton.clicked.connect(self.delete_row)
+        self.ui.dbTable.itemClicked.connect(self.on_clicked)
         self.ui.dbTable.itemChanged.connect(self.on_change)
         self.cnx = mysql.connector.connect(host="localhost",
-                                      user='admin',
-                                      password='pass',
-                                      db="Lab_1_schema")
+                                           user='admin',
+                                           password='pass',
+                                           db="Lab_1_schema",
+                                           auth_plugin='mysql_native_password')
         self.header_labels = []
         self.edit_table_rules = False
         self.table_list()
+        self.current_id = 0
+        self.current_row = -1
+        self.current_column = -1
+
+    def on_clicked(self, item):
+        table_item = item
+        self.current_row = table_item.row()
+        self.current_column = table_item.column()
+
+    def delete_row(self):
+        query = f"DELETE FROM {str(self.ui.listTables.currentText())} WHERE " \
+                f"{self.header_labels[0]} = '{self.ui.dbTable.item(self.current_row, 0).text()}';"
+        cursor = self.cnx.cursor()
+        cursor.execute(query, )
+        self.cnx.commit()
+        cursor.close()
+        self.converter()
+
+    def add_row(self):
+        for i in range(self.ui.addRowTable.columnCount()):
+            if self.ui.addRowTable.item(0, i) == None:
+                return -1
+        query = f"INSERT INTO {str(self.ui.listTables.currentText())} ("
+        column_count = len(self.header_labels)
+        for i in range(0, column_count - 1):
+            query = f"{query} {self.header_labels[i]},"
+        query = f"{query} {self.header_labels[column_count - 1]} ) VALUES ("
+        for i in range(0, column_count - 1):
+            query = f"{query} '{self.ui.addRowTable.item(0, i).text()}',"
+        query = f"{query} '{self.ui.addRowTable.item(0, column_count - 1).text()}' );"
+        print(query)
+        cursor = self.cnx.cursor()
+        cursor.execute(query, )
+        self.cnx.commit()
+        cursor.close()
+        self.converter()
+
 
     def on_change(self, item):
         table_item = item
@@ -77,27 +119,32 @@ class CurrencyConv(QtWidgets.QMainWindow):
         # Этап заполнения таблицы
         cursor = self.cnx.cursor()
         query = (f"SELECT * FROM {str(self.ui.listTables.currentText())};")
-        cursor.execute(query,)
+        cursor.execute(query, )
         rows = cursor.fetchall()
         self.ui.dbTable.blockSignals(True)
         self.ui.dbTable.setColumnCount(0)
         self.ui.dbTable.setRowCount(0)
         self.ui.dbTable.setColumnCount(len(rows[0]))
+        self.ui.addRowTable.setColumnCount(0)
         self.ui.addRowTable.setColumnCount(len(rows[0]))
         self.ui.dbTable.setHorizontalHeaderLabels(self.header_labels)
         # self.ui.addRowTable.horizontalHeader().setMaximumSize(QtCore.QSize(16777215, 0))
         # self.ui.dbTable.horizontalHeaderItem(0).
+        self.current_id = -1
         for record in rows:
             row_position = self.ui.dbTable.rowCount()
             self.ui.dbTable.insertRow(row_position)
+            if self.current_id < int(record[0]):
+                self.current_id = int(record[0])
             for item_idx in range(len(record)):
                 self.ui.dbTable.setItem(row_position, item_idx, QTableWidgetItem(str(record[item_idx])))
         self.ui.dbTable.blockSignals(False)
         cursor.close()
         # self.ui.dbTable.setEnabled(False)
-        self.ui.dbTable.setEditTriggers(QTableWidget.NoEditTriggers)
-        #self.cnx.close()
-
+        # self.ui.dbTable.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.current_id += 1
+        self.ui.addRowTable.setItem(0, 0, QTableWidgetItem(str(self.current_id)))
+        # self.cnx.close()
 
 
 app = QtWidgets.QApplication([])
