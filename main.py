@@ -113,6 +113,7 @@ class CurrencyConv(QtWidgets.QMainWindow):
         query = (f"SHOW COLUMNS FROM {str(self.ui.listTables.currentText())};")
         cursor.execute(query, )
         rows = cursor.fetchall()
+        self.header_labels = []
         for row in rows:
             self.header_labels.append(row[0])
         cursor.close()
